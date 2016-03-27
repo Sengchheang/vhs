@@ -75,11 +75,58 @@ abstract class AbstractContentViewHelper extends AbstractViewHelper {
 
 		$contentRecords = $this->getSlideRecords($pageUid, $limit);
 
+		$currentLanguage = $GLOBALS['TSFE']->sys_language_content;
+		if ($currentLanguage != 0 && count($contentRecords) > 0) {
+			$contentRecords = $this->fetchRowsWithOverlay($contentRecords, $currentLanguage);
+		}
+
 		if (TRUE === (boolean) $this->arguments['render']) {
 			$contentRecords = $this->getRenderedRecords($contentRecords);
 		}
 
 		return $contentRecords;
+	}
+
+	/**
+	 * Fetches rows again, now with proper field overlay.
+	 *
+	 * @param array $rows
+	 * @param int $language
+	 * @return array
+	 * @see https://github.com/FluidTYPO3/vhs/issues/761#issuecomment-155442881
+	 */
+	protected function fetchRowsWithOverlay(array $rows, $language) {
+		$uidList = array();
+		$result = array();
+
+		foreach ($rows as $row) {
+			$uidList[] = $row['l18n_parent'];
+		}
+		/** @noinspection PhpUndefinedMethodInspection */
+		$rowsInMainLanguage = $GLOBALS['TYPO3_DB']->exec_SELECTgetRows(
+				'*',
+				'tt_content',
+				'uid IN (' . implode(',', $uidList) . ')' . $GLOBALS['TSFE']->sys_page->enableFields('tt_content'),
+				'',
+				'sorting',
+				'',
+				'uid'
+		);
+
+		foreach ($rows as $row) {
+			if ($row['l18n_parent'] == 0) {
+				$result[] = $row;
+			}
+			else {
+				$rowInMainLanguage = $rowsInMainLanguage[$row['l18n_parent']];
+				// If row does not exist, than its enableFields prohibit display
+				if ($rowInMainLanguage) {
+					$result[] = $GLOBALS['TSFE']->sys_page->getRecordOverlay('tt_content', $rowInMainLanguage, $language, $GLOBALS['TSFE']->sys_language_contentOL);
+				}
+			}
+		}
+
+		return $result;
 	}
 
 	/**
@@ -103,7 +150,7 @@ abstract class AbstractContentViewHelper extends AbstractViewHelper {
 		} else {
 			$hideUntranslated = (boolean) $this->arguments['hideUntranslated'];
 			$currentLanguage = $GLOBALS['TSFE']->sys_language_content;
-			$languageCondition = '(sys_language_uid IN (-1,' . $currentLanguage . ')';
+			$languageCondition = '(sys_language_uid IN (0,' . $currentLanguage . ')';
 			if (0 < $currentLanguage) {
 				if (TRUE === $hideUntranslated) {
 					$languageCondition .= ' AND l18n_parent > 0';
