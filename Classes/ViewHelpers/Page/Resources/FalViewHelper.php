@@ -24,6 +24,9 @@ class FalViewHelper extends ResourcesFalViewHelper {
 
 	const defaultTable = 'pages';
 	const defaultField = 'media';
+	const defaultOverlayField = '_PAGES_OVERLAY';
+	const defaultOverlayUidField = '_PAGES_OVERLAY_UID';
+	const defaultOverlayTable = 'pages_language_overlay';
 
 	/**
 	 * @var string
@@ -104,14 +107,24 @@ class FalViewHelper extends ResourcesFalViewHelper {
 	 * @throws Exception
 	 */
 	public function render() {
-		$record = $this->arguments['record'];
 		$uid = $this->arguments['uid'];
+
 		if (NULL === $uid) {
+			$record = $this->arguments['record'];
+
 			if (NULL === $record) {
 				$record = $this->getActiveRecord();
 			}
+
 			$uid = $record['uid'];
+
+			if (!empty($record[self::defaultOverlayField])) {
+				$this->arguments['table'] = self::defaultOverlayTable;
+				$this->arguments['uid'] = $record[self::defaultOverlayUidField];
+				$uid = $record[self::defaultOverlayUidField];
+			}
 		}
+
 		if (NULL === $uid) {
 			throw new Exception('No record was found. The "record" or "uid" argument must be specified.', 1384611413);
 		}
